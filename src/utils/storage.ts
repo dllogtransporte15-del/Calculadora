@@ -2,9 +2,14 @@ export interface User {
   id: string;
   companyName: string;
   email: string;
-  passwordHash: string; // In a real app, never store plain text. We'll simulate here.
+  passwordHash: string;
   documentType: 'CPF' | 'CNPJ';
   documentNumber: string;
+  whatsapp: string;
+  role: 'master' | 'admin';
+  status: 'ativo' | 'bloqueado' | 'pendente';
+  createdAt: string;
+  planType?: 'free' | 'paid';
 }
 
 export interface Client {
@@ -44,8 +49,8 @@ export interface QuoteRecord {
   axes: number;
   cargoType: string;
   inputMode: 'PER_KM' | 'TOTAL' | 'PER_TON';
-  valuePerKm: number; // Can be derived if TOTAL
-  driverTotalValue: number; // The manually entered or calculated total for driver
+  valuePerKm: number;
+  driverTotalValue: number;
   tollValue: number;
   anttValue: number;
   weight: number;
@@ -63,7 +68,11 @@ export interface QuoteRecord {
   carrierProfitMargin: number;
 }
 
-// User Management
+// ─── Constants ────────────────────────────────────────────────────────────────
+export const MASTER_EMAIL = 'dllogtransporte15@gmail.com';
+export const MASTER_PASSWORD = 'dllog@master2025';
+
+// ─── User Management ──────────────────────────────────────────────────────────
 export const getUsers = (): User[] => {
   try {
     return JSON.parse(localStorage.getItem('dllog_users') || '[]');
@@ -82,6 +91,63 @@ export const saveUser = (user: Omit<User, 'id'>): User => {
   } catch (e) {
     console.error('Error saving user:', e);
     throw new Error('Não foi possível salvar o usuário. Verifique se o seu navegador permite o uso de armazenamento local.');
+  }
+};
+
+export const updateUser = (id: string, data: Partial<Omit<User, 'id'>>): User | null => {
+  try {
+    const users = getUsers();
+    const index = users.findIndex(u => u.id === id);
+    if (index === -1) return null;
+    const updated = { ...users[index], ...data };
+    users[index] = updated;
+    localStorage.setItem('dllog_users', JSON.stringify(users));
+    return updated;
+  } catch (e) {
+    console.error('Error updating user:', e);
+    return null;
+  }
+};
+
+export const deleteUser = (id: string): boolean => {
+  try {
+    const users = getUsers().filter(u => u.id !== id);
+    localStorage.setItem('dllog_users', JSON.stringify(users));
+    return true;
+  } catch (e) {
+    console.error('Error deleting user:', e);
+    return false;
+  }
+};
+
+export const blockUser = (id: string) => updateUser(id, { status: 'bloqueado' });
+export const unblockUser = (id: string) => updateUser(id, { status: 'ativo' });
+
+export const isMaster = (user: User | null): boolean =>
+  user?.email === MASTER_EMAIL && user?.role === 'master';
+
+// Seed do usuário master — chamado na inicialização do app
+export const initializeMasterUser = (): void => {
+  const users = getUsers();
+  const masterExists = users.some(u => u.email === MASTER_EMAIL);
+  if (!masterExists) {
+    saveUser({
+      companyName: 'DLLOG TRANSPORTES',
+      email: MASTER_EMAIL,
+      passwordHash: MASTER_PASSWORD,
+      documentType: 'CNPJ',
+      documentNumber: '00.000.000/0000-00',
+      role: 'master',
+      status: 'ativo',
+      createdAt: new Date().toISOString(),
+      planType: 'paid',
+    });
+  } else {
+    // Garante que o master sempre tenha o role correto (migração)
+    const master = users.find(u => u.email === MASTER_EMAIL);
+    if (master && master.role !== 'master') {
+      updateUser(master.id, { role: 'master', status: 'ativo' });
+    }
   }
 };
 
@@ -106,7 +172,7 @@ export const setLoggedInUser = (user: User | null) => {
   }
 };
 
-// Client Management
+// ─── Client Management ────────────────────────────────────────────────────────
 export const getClients = (companyId: string): Client[] => {
   try {
     const allClients: Client[] = JSON.parse(localStorage.getItem('dllog_clients') || '[]');
@@ -128,11 +194,11 @@ export const saveClient = (companyId: string, name: string): Client => {
     return newClient;
   } catch (e) {
     console.error('Error saving client:', e);
-    return { id: 'TEMP', companyId, name }; // Fallback for UI
+    return { id: 'TEMP', companyId, name };
   }
 };
 
-// Records Management
+// ─── Records Management ───────────────────────────────────────────────────────
 export const getStays = (companyId: string): StayRecord[] => {
   try {
     const allStays: StayRecord[] = JSON.parse(localStorage.getItem('dllog_stays') || '[]');
@@ -184,8 +250,7 @@ export const saveQuote = (quote: Omit<QuoteRecord, 'id' | 'date'>): QuoteRecord 
 export const deleteStay = (id: string) => {
   try {
     const allStays: StayRecord[] = JSON.parse(localStorage.getItem('dllog_stays') || '[]');
-    const updatedStays = allStays.filter(stay => stay.id !== id);
-    localStorage.setItem('dllog_stays', JSON.stringify(updatedStays));
+    localStorage.setItem('dllog_stays', JSON.stringify(allStays.filter(stay => stay.id !== id)));
   } catch (e) {
     console.error('Error deleting stay:', e);
   }
@@ -194,8 +259,7 @@ export const deleteStay = (id: string) => {
 export const deleteQuote = (id: string) => {
   try {
     const allQuotes: QuoteRecord[] = JSON.parse(localStorage.getItem('dllog_quotes') || '[]');
-    const updatedQuotes = allQuotes.filter(quote => quote.id !== id);
-    localStorage.setItem('dllog_quotes', JSON.stringify(updatedQuotes));
+    localStorage.setItem('dllog_quotes', JSON.stringify(allQuotes.filter(quote => quote.id !== id)));
   } catch (e) {
     console.error('Error deleting quote:', e);
   }

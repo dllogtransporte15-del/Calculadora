@@ -10,7 +10,8 @@ import StayCalculator from './components/StayCalculator';
 import FreightQuote from './components/FreightQuote';
 import History from './components/History';
 import Auth from './components/Auth';
-import { getLoggedInUser, setLoggedInUser, User } from './utils/storage';
+import AdminPanel from './components/AdminPanel';
+import { getLoggedInUser, setLoggedInUser, User, initializeMasterUser, isMaster } from './utils/storage';
 import logo from './assets/logo.png';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
@@ -21,6 +22,7 @@ export default function App() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
+    initializeMasterUser();
     const loggedInUser = getLoggedInUser();
     if (loggedInUser) {
       setUser(loggedInUser);
@@ -39,6 +41,11 @@ export default function App() {
 
   if (!user) {
     return <Auth onLogin={setUser} />;
+  }
+
+  // Rota Master → Painel Admin
+  if (isMaster(user)) {
+    return <AdminPanel onLogout={handleLogout} />;
   }
 
   return (

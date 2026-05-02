@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, UserPlus, Mail, Lock, Building, AlertCircle, Send, FileText } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, Building, AlertCircle, Send, FileText, Phone } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { getUsers, saveUser, setLoggedInUser, User } from '../utils/storage';
 
@@ -36,6 +36,19 @@ function validateCNPJ(cnpj: string): boolean {
   return digits.length === 14;
 }
 
+// Formata telefone: (00) 00000-0000
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 10) {
+    return digits
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d{1,4})$/, '$1-$2');
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+}
+
 export default function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [companyName, setCompanyName] = useState('');
@@ -43,6 +56,7 @@ export default function Auth({ onLogin }: AuthProps) {
   const [password, setPassword] = useState('');
   const [documentType, setDocumentType] = useState<'CPF' | 'CNPJ'>('CNPJ');
   const [documentNumber, setDocumentNumber] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [error, setError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
@@ -82,6 +96,10 @@ export default function Auth({ onLogin }: AuthProps) {
           setError(`${documentType} inválido. Verifique os dígitos informados.`);
           return;
         }
+        if (!whatsapp || whatsapp.replace(/\D/g, '').length < 10) {
+          setError('Por favor, informe um WhatsApp válido com DDD.');
+          return;
+        }
       }
 
       const users = getUsers();
@@ -89,6 +107,10 @@ export default function Auth({ onLogin }: AuthProps) {
       if (isLogin) {
         const user = users.find(u => u.email === email && u.passwordHash === password);
         if (user) {
+          if (user.status === 'bloqueado') {
+            setError('Conta bloqueada. Entre em contato com o administrador DLLOG.');
+            return;
+          }
           setLoggedInUser(user);
           onLogin(user);
         } else {
@@ -104,7 +126,17 @@ export default function Auth({ onLogin }: AuthProps) {
           setError(`Este ${documentType} já está cadastrado.`);
           return;
         }
-        const newUser = saveUser({ companyName, email, passwordHash: password, documentType, documentNumber });
+        const newUser = saveUser({
+          companyName,
+          email,
+          passwordHash: password,
+          documentType,
+          documentNumber,
+          whatsapp,
+          role: 'admin',
+          status: 'ativo',
+          createdAt: new Date().toISOString(),
+        });
         setLoggedInUser(newUser);
         onLogin(newUser);
       }
@@ -114,47 +146,75 @@ export default function Auth({ onLogin }: AuthProps) {
     }
   };
 
+  const SUPPORT_WHATSAPP = '5564993058754';
+
   const handleForgotPassword = () => {
     setRecoveryMessage('');
     if (!recoveryEmail) {
-      setRecoveryMessage('Por favor, insira seu e-mail.');
+      setRecoveryMessage('Por favor, insira seu e-mail cadastrado.');
       return;
     }
-    console.log(`Password recovery email sent to ${recoveryEmail}`);
-    setRecoveryMessage(`Um e-mail de recuperação foi enviado para ${recoveryEmail}.`);
+    const message = encodeURIComponent(
+      `Olá! Preciso recuperar minha senha do sistema *DLLOG CONTROL*.\n\nMeu e-mail cadastrado é: *${recoveryEmail}*`
+    );
+    window.open(`https://wa.me/${SUPPORT_WHATSAPP}?text=${message}`, '_blank');
+    setShowForgotPassword(false);
     setRecoveryEmail('');
   };
 
   const renderForgotPassword = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full mx-4">
-        <div className="space-y-4 text-center">
-          <h2 className="text-2xl font-bold text-slate-800">Recuperar Senha</h2>
-          <p className="text-slate-500">Insira seu e-mail para receber um link de recuperação.</p>
-          <div className="relative">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+        <div className="space-y-5 text-center">
+          {/* WhatsApp Icon */}
+          <div className="w-16 h-16 mx-auto bg-green-50 rounded-2xl flex items-center justify-center border border-green-100">
+            <svg viewBox="0 0 24 24" className="w-9 h-9 fill-green-500">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Recuperar Senha</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Informe seu e-mail e será redirecionado ao nosso suporte via WhatsApp.
+            </p>
+          </div>
+
+          <div className="relative text-left">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input 
-              type="email" 
-              placeholder="Seu e-mail cadastrado" 
+            <input
+              type="email"
+              placeholder="Seu e-mail cadastrado"
               value={recoveryEmail}
               onChange={(e) => setRecoveryEmail(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+              onKeyDown={(e) => e.key === 'Enter' && handleForgotPassword()}
+              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-400 focus:border-green-400 outline-none text-sm transition-all"
             />
           </div>
-          {recoveryMessage && <p className="text-sm text-green-600">{recoveryMessage}</p>}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button 
-              onClick={() => { setShowForgotPassword(false); setRecoveryMessage(''); }}
-              className="w-full bg-slate-100 text-slate-700 font-medium py-3 px-4 rounded-lg hover:bg-slate-200 transition-colors"
+
+          {recoveryMessage && (
+            <p className="text-sm text-red-500 font-medium">{recoveryMessage}</p>
+          )}
+
+          <p className="text-[10px] text-slate-400">
+            Você será direcionado ao WhatsApp do suporte DLLOG.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => { setShowForgotPassword(false); setRecoveryMessage(''); setRecoveryEmail(''); }}
+              className="w-full bg-slate-100 text-slate-700 font-semibold py-3 px-4 rounded-xl hover:bg-slate-200 transition-colors text-sm"
             >
               Cancelar
             </button>
-            <button 
-              onClick={handleForgotPassword} 
-              className="w-full flex items-center justify-center bg-gradient-to-r from-primary to-primary-dark text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm"
+            <button
+              onClick={handleForgotPassword}
+              className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors shadow-sm text-sm"
             >
-              <Send className="w-5 h-5 mr-2" />
-              Enviar
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white flex-shrink-0">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+              Falar no WhatsApp
             </button>
           </div>
         </div>
@@ -261,6 +321,33 @@ export default function Auth({ onLogin }: AuthProps) {
                 <p className="mt-1 text-[10px] text-slate-400">
                   {documentType === 'CPF' ? '11 dígitos — Pessoa Física' : '14 dígitos — Pessoa Jurídica'}
                 </p>
+              </div>
+            )}
+
+            {/* WhatsApp (só no cadastro) */}
+            {!isLogin && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  WhatsApp <span className="text-red-500">*</span>
+                </label>
+                <div className="relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <div className="absolute inset-y-0 left-9 flex items-center pointer-events-none">
+                    <span className="text-xs font-bold text-slate-400 border-r border-slate-200 pr-2">+55</span>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(formatPhone(e.target.value))}
+                    className="focus:ring-primary focus:border-primary block w-full pl-16 sm:text-sm border-slate-300 rounded-lg py-2 border outline-none transition-all"
+                    placeholder="(00) 00000-0000"
+                    inputMode="numeric"
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">Informe o DDD + número com 9 dígitos</p>
               </div>
             )}
 
@@ -371,6 +458,7 @@ export default function Auth({ onLogin }: AuthProps) {
                   setPassword('');
                   setDocumentNumber('');
                   setDocumentType('CNPJ');
+                  setWhatsapp('');
                 }}
                 className="w-full flex justify-center py-3 px-4 border border-primary/20 rounded-xl shadow-sm text-sm font-semibold text-primary-dark bg-white hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all"
               >
