@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+.gmp-autocomplete-container {
+  width: 100%;
+}
+
+/* Style the internal input of the web component to match Tailwind inputs */
+place-autocomplete-element::part(input) {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1; /* slate-300 */
+  border-radius: 0.5rem; /* rounded-lg */
+  font-size: 0.875rem; /* text-sm */
+  line-height: 1.25rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+place-autocomplete-element::part(input):focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}

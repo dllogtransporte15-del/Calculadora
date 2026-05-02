@@ -1,0 +1,7 @@
+{
+  "name": "Calculadora de Estadias DLLOG CONTROL",
+  "description": "Aplicativo para calcular o valor de estadias de motoristas com base no tempo de espera, peso e tolerância.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
