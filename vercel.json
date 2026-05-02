@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "calculadora-de-estadias-dllog-control/dist",
+  "installCommand": "npm install --prefix calculadora-de-estadias-dllog-control",
+  "framework": "vite"
+}
