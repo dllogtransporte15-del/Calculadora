@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-primary: #c9a341;
+  --color-primary-dark: #a38232;
+  --color-primary-light: #e0c278;
+  --color-luxury-bg: #fdfaf4;
+  --color-luxury-text: #3d3423;
 }
 
 .gmp-autocomplete-container {

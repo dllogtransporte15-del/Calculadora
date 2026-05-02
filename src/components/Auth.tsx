@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Truck, LogIn, UserPlus, Mail, Lock, Building, AlertCircle, Send } from 'lucide-react';
+import { Truck, LogIn, UserPlus, Mail, Lock, Building, AlertCircle, Send, ShieldCheck, Clock, CheckCircle2 } from 'lucide-react';
+import logo from '../assets/logo.png';
 import { getUsers, saveUser, setLoggedInUser, User } from '../utils/storage';
 
 interface AuthProps {
@@ -101,19 +102,23 @@ export default function Auth({ onLogin }: AuthProps) {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <div className="p-3 bg-indigo-600 rounded-xl text-white shadow-sm">
-            <Truck className="w-8 h-8" />
+    <div className="min-h-screen bg-luxury-bg flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+      {/* Decorative Background Elements */}
+      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-[-10%] left-[-10%] w-[30%] h-[30%] bg-primary/10 rounded-full blur-3xl"></div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <div className="w-24 h-24 mb-2">
+            <img src={logo} alt="DLLOG Logo" className="w-full h-full object-contain" />
+          </div>
+          <div className="text-center space-y-1">
+            <h2 className="text-sm font-medium tracking-[0.2em] text-primary uppercase">
+              Sistema de Gestão Logística
+            </h2>
+            <div className="w-12 h-1 bg-primary mx-auto rounded-full"></div>
           </div>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
-          DLLOG CONTROL
-        </h2>
-        <p className="mt-2 text-center text-sm text-slate-600">
-          {isLogin ? 'Faça login para acessar o sistema' : 'Crie sua conta para começar'}
-        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -207,24 +212,32 @@ export default function Auth({ onLogin }: AuthProps) {
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-base font-semibold text-white bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0"
               >
                 {isLogin ? (
-                  <><LogIn className="w-5 h-5 mr-2" /> Entrar</>
+                  <><LogIn className="w-5 h-5 mr-2" /> ENTRAR NO SISTEMA</>
                 ) : (
-                  <><UserPlus className="w-5 h-5 mr-2" /> Cadastrar Empresa</>
+                  <><UserPlus className="w-5 h-5 mr-2" /> CADASTRAR AGORA</>
                 )}
               </button>
             </div>
           </form>
 
-          <div className="mt-6">
+          <div className="mt-8 flex justify-center space-x-4 text-[10px] font-bold tracking-widest text-primary/60 uppercase">
+             <span>TRANSPARÊNCIA</span>
+             <span>•</span>
+             <span>CUIDADO</span>
+             <span>•</span>
+             <span>PRAZO</span>
+          </div>
+
+          <div className="mt-10">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
+                <div className="w-full border-t border-slate-100" />
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-slate-500">
+              <div className="relative flex justify-center text-xs">
+                <span className="px-2 bg-white text-slate-400 font-medium">
                   {isLogin ? 'Novo por aqui?' : 'Já tem uma conta?'}
                 </span>
               </div>
@@ -240,13 +253,19 @@ export default function Auth({ onLogin }: AuthProps) {
                   setEmail('');
                   setPassword('');
                 }}
-                className="w-full flex justify-center py-2.5 px-4 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                className="w-full flex justify-center py-3 px-4 border border-primary/20 rounded-xl shadow-sm text-sm font-semibold text-primary-dark bg-white hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all"
               >
-                {isLogin ? 'Criar uma conta' : 'Fazer login'}
+                {isLogin ? 'CRIAR UMA CONTA' : 'FAZER LOGIN'}
               </button>
             </div>
           </div>
         </div>
+      </div>
+      
+      <div className="mt-8 text-center">
+        <p className="text-[10px] text-slate-400 font-medium tracking-wide">
+          © 2025 DLLOG — Todos os direitos reservados
+        </p>
       </div>
       {showForgotPassword && renderForgotPassword()}
     </div>
