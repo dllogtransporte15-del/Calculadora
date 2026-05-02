@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Truck, LogIn, UserPlus, Mail, Lock, Building, AlertCircle, Send, ShieldCheck, Clock, CheckCircle2 } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, Building, AlertCircle, Send, FileText } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { getUsers, saveUser, setLoggedInUser, User } from '../utils/storage';
 
@@ -7,15 +7,56 @@ interface AuthProps {
   onLogin: (user: User) => void;
 }
 
+// Formata CPF: 000.000.000-00
+function formatCPF(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+// Formata CNPJ: 00.000.000/0000-00
+function formatCNPJ(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
+function validateCPF(cpf: string): boolean {
+  const digits = cpf.replace(/\D/g, '');
+  return digits.length === 11;
+}
+
+function validateCNPJ(cnpj: string): boolean {
+  const digits = cnpj.replace(/\D/g, '');
+  return digits.length === 14;
+}
+
 export default function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [documentType, setDocumentType] = useState<'CPF' | 'CNPJ'>('CNPJ');
+  const [documentNumber, setDocumentNumber] = useState('');
   const [error, setError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryMessage, setRecoveryMessage] = useState('');
+
+  const handleDocumentChange = (value: string) => {
+    const formatted = documentType === 'CPF' ? formatCPF(value) : formatCNPJ(value);
+    setDocumentNumber(formatted);
+  };
+
+  const handleDocumentTypeChange = (type: 'CPF' | 'CNPJ') => {
+    setDocumentType(type);
+    setDocumentNumber(''); // limpa ao trocar de tipo
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +66,22 @@ export default function Auth({ onLogin }: AuthProps) {
       if (!email || !password || (!isLogin && !companyName)) {
         setError('Por favor, preencha todos os campos.');
         return;
+      }
+
+      // Validação do documento no cadastro
+      if (!isLogin) {
+        const isValid = documentType === 'CPF'
+          ? validateCPF(documentNumber)
+          : validateCNPJ(documentNumber);
+
+        if (!documentNumber) {
+          setError(`Por favor, informe o ${documentType}.`);
+          return;
+        }
+        if (!isValid) {
+          setError(`${documentType} inválido. Verifique os dígitos informados.`);
+          return;
+        }
       }
 
       const users = getUsers();
@@ -42,7 +99,12 @@ export default function Auth({ onLogin }: AuthProps) {
           setError('Este e-mail já está cadastrado.');
           return;
         }
-        const newUser = saveUser({ companyName, email, passwordHash: password });
+        // Verifica documento duplicado
+        if (users.some(u => u.documentNumber?.replace(/\D/g, '') === documentNumber.replace(/\D/g, ''))) {
+          setError(`Este ${documentType} já está cadastrado.`);
+          return;
+        }
+        const newUser = saveUser({ companyName, email, passwordHash: password, documentType, documentNumber });
         setLoggedInUser(newUser);
         onLogin(newUser);
       }
@@ -58,7 +120,6 @@ export default function Auth({ onLogin }: AuthProps) {
       setRecoveryMessage('Por favor, insira seu e-mail.');
       return;
     }
-    // Simulate sending email
     console.log(`Password recovery email sent to ${recoveryEmail}`);
     setRecoveryMessage(`Um e-mail de recuperação foi enviado para ${recoveryEmail}.`);
     setRecoveryEmail('');
@@ -77,7 +138,7 @@ export default function Auth({ onLogin }: AuthProps) {
               placeholder="Seu e-mail cadastrado" 
               value={recoveryEmail}
               onChange={(e) => setRecoveryEmail(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
             />
           </div>
           {recoveryMessage && <p className="text-sm text-green-600">{recoveryMessage}</p>}
@@ -90,7 +151,7 @@ export default function Auth({ onLogin }: AuthProps) {
             </button>
             <button 
               onClick={handleForgotPassword} 
-              className="w-full flex items-center justify-center bg-indigo-600 text-white font-medium py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+              className="w-full flex items-center justify-center bg-gradient-to-r from-primary to-primary-dark text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm"
             >
               <Send className="w-5 h-5 mr-2" />
               Enviar
@@ -100,6 +161,8 @@ export default function Auth({ onLogin }: AuthProps) {
       </div>
     </div>
   );
+
+  const inputClass = "focus:ring-primary focus:border-primary block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2 border outline-none transition-all";
 
   return (
     <div className="min-h-screen bg-luxury-bg flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
@@ -123,13 +186,15 @@ export default function Auth({ onLogin }: AuthProps) {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-slate-200">
-          <form key={isLogin ? 'login' : 'register'} className="space-y-6" onSubmit={handleSubmit}>
+          <form key={isLogin ? 'login' : 'register'} className="space-y-5" onSubmit={handleSubmit}>
+
+            {/* Nome da Empresa (só no cadastro) */}
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-slate-700">
-                  Nome da Empresa
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Nome da Empresa <span className="text-red-500">*</span>
                 </label>
-                <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Building className="h-5 w-5 text-slate-400" />
                   </div>
@@ -138,18 +203,73 @@ export default function Auth({ onLogin }: AuthProps) {
                     required
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2 border outline-none transition-all"
+                    className={inputClass}
                     placeholder="Sua Empresa Ltda"
                   />
                 </div>
               </div>
             )}
 
+            {/* CPF / CNPJ (só no cadastro) */}
+            {!isLogin && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Tipo de Documento <span className="text-red-500">*</span>
+                </label>
+
+                {/* Toggle CPF / CNPJ */}
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDocumentTypeChange('CPF')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all ${
+                      documentType === 'CPF'
+                        ? 'bg-primary text-white border-primary shadow-md'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-primary/50'
+                    }`}
+                  >
+                    CPF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDocumentTypeChange('CNPJ')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all ${
+                      documentType === 'CNPJ'
+                        ? 'bg-primary text-white border-primary shadow-md'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-primary/50'
+                    }`}
+                  >
+                    CNPJ
+                  </button>
+                </div>
+
+                {/* Número do documento */}
+                <div className="relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FileText className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={documentNumber}
+                    onChange={(e) => handleDocumentChange(e.target.value)}
+                    className={inputClass}
+                    placeholder={documentType === 'CPF' ? '000.000.000-00' : '00.000.000/0000-00'}
+                    inputMode="numeric"
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  {documentType === 'CPF' ? '11 dígitos — Pessoa Física' : '14 dígitos — Pessoa Jurídica'}
+                </p>
+              </div>
+            )}
+
+            {/* E-mail */}
             <div>
-              <label className="block text-sm font-medium text-slate-700">
-                E-mail Administrativo
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                E-mail Administrativo <span className="text-red-500">*</span>
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-slate-400" />
                 </div>
@@ -158,30 +278,29 @@ export default function Auth({ onLogin }: AuthProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2 border outline-none transition-all"
+                  className={inputClass}
                   placeholder="admin@empresa.com"
                 />
               </div>
             </div>
 
+            {/* Senha */}
             <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-slate-700">
-                  Senha
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Senha <span className="text-red-500">*</span>
                 </label>
                 {isLogin && (
-                  <div className="text-sm">
-                    <button 
-                      type="button"
-                      onClick={() => setShowForgotPassword(true)}
-                      className="font-medium text-indigo-600 hover:text-indigo-500"
-                    >
-                      Esqueceu a senha?
-                    </button>
-                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-xs font-semibold text-primary hover:text-primary-dark"
+                  >
+                    Esqueceu a senha?
+                  </button>
                 )}
               </div>
-              <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-slate-400" />
                 </div>
@@ -190,25 +309,23 @@ export default function Auth({ onLogin }: AuthProps) {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2 border outline-none transition-all"
+                  className={inputClass}
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
+            {/* Erro */}
             {error && (
-              <div className="rounded-md bg-red-50 p-4">
+              <div className="rounded-xl bg-red-50 border border-red-100 p-4">
                 <div className="flex">
-                  <div className="flex-shrink-0">
-                    <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                  </div>
+                  <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+                  <h3 className="ml-3 text-sm font-medium text-red-800">{error}</h3>
                 </div>
               </div>
             )}
 
+            {/* Botão submit */}
             <div>
               <button
                 type="submit"
@@ -231,7 +348,7 @@ export default function Auth({ onLogin }: AuthProps) {
              <span>PRAZO</span>
           </div>
 
-          <div className="mt-10">
+          <div className="mt-8">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-100" />
@@ -252,6 +369,8 @@ export default function Auth({ onLogin }: AuthProps) {
                   setCompanyName('');
                   setEmail('');
                   setPassword('');
+                  setDocumentNumber('');
+                  setDocumentType('CNPJ');
                 }}
                 className="w-full flex justify-center py-3 px-4 border border-primary/20 rounded-xl shadow-sm text-sm font-semibold text-primary-dark bg-white hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all"
               >

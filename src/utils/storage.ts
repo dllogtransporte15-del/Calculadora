@@ -3,6 +3,8 @@ export interface User {
   companyName: string;
   email: string;
   passwordHash: string; // In a real app, never store plain text. We'll simulate here.
+  documentType: 'CPF' | 'CNPJ';
+  documentNumber: string;
 }
 
 export interface Client {
