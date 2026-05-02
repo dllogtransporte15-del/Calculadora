@@ -118,7 +118,7 @@ export default function Auth({ onLogin }: AuthProps) {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-slate-200">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form key={isLogin ? 'login' : 'register'} className="space-y-6" onSubmit={handleSubmit}>
             {!isLogin && (
               <div>
                 <label className="block text-sm font-medium text-slate-700">
