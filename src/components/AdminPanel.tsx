@@ -125,11 +125,11 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   };
 
   const handleResetPassword = async (user: User) => {
-    const updated = await updateUser(user.id, { passwordHash: 'dllog123' });
+    const updated = await updateUser(user.id, { passwordHash: 'dllog123', mustChangePassword: true });
     if (updated) {
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, passwordHash: 'dllog123' } : u));
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, passwordHash: 'dllog123', mustChangePassword: true } : u));
       setConfirmReset(null);
-      showToast(`🔑 Senha de ${user.companyName} redefinida para dllog123.`);
+      showToast(`🔑 Senha de ${user.companyName} redefinida. Usuário deverá criar nova senha no próximo acesso.`);
     } else {
       showToast(`❌ Erro ao resetar senha.`);
     }

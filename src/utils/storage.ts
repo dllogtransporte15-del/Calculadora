@@ -14,6 +14,7 @@ export interface User {
   planType: 'trial' | 'paid' | 'expired';
   subscriptionEndDate?: string;
   kiwifyLink?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface SystemConfig {
@@ -168,7 +169,8 @@ export const getUsers = async (): Promise<User[]> => {
       status: u.status,
       planType: u.plan_type,
       subscriptionEndDate: u.subscription_end_date,
-      createdAt: u.created_at
+      createdAt: u.created_at,
+      mustChangePassword: u.must_change_password ?? false
     }));
   } catch (e) {
     console.error('Error fetching users from Supabase:', e);
@@ -227,6 +229,7 @@ export const updateUser = async (id: string, data: Partial<Omit<User, 'id'>>): P
     if (data.status) updatePayload.status = data.status;
     if (data.planType) updatePayload.plan_type = data.planType;
     if (data.subscriptionEndDate) updatePayload.subscription_end_date = data.subscriptionEndDate;
+    if (data.mustChangePassword !== undefined) updatePayload.must_change_password = data.mustChangePassword;
 
     const { data: updated, error } = await supabase
       .from('profiles')
@@ -249,7 +252,8 @@ export const updateUser = async (id: string, data: Partial<Omit<User, 'id'>>): P
       status: updated.status,
       planType: updated.plan_type,
       subscriptionEndDate: updated.subscription_end_date,
-      createdAt: updated.created_at
+      createdAt: updated.created_at,
+      mustChangePassword: updated.must_change_password ?? false
     };
   } catch (e) {
     console.error('Error updating user in Supabase:', e);

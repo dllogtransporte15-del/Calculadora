@@ -12,6 +12,7 @@ import History from './components/History';
 import Auth from './components/Auth';
 import AdminPanel from './components/AdminPanel';
 import SubscriptionWall from './components/SubscriptionWall';
+import ForcePasswordChange from './components/ForcePasswordChange';
 import { getLoggedInUser, setLoggedInUser, User, initializeMasterUser, isMaster, checkSubscriptionStatus } from './utils/storage';
 import logo from './assets/logo.png';
 
@@ -53,6 +54,11 @@ export default function App() {
   // Rota Master → Painel Admin
   if (isMaster(user)) {
     return <AdminPanel onLogout={handleLogout} />;
+  }
+
+  // Troca obrigatória de senha após reset pelo admin
+  if (user.mustChangePassword) {
+    return <ForcePasswordChange user={user} onPasswordChanged={(updated) => setUser(updated)} />;
   }
 
   // Bloqueio de Assinatura Expirada
