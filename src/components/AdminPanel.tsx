@@ -101,14 +101,14 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   }), [nonMasterUsers]);
 
   const handleBlock = async (user: User) => {
-    if (user.status === 'bloqueado') {
-      await unblockUser(user.id);
-      showToast(`✅ ${user.companyName} foi reativado.`);
+    const newStatus = user.status === 'bloqueado' ? 'ativo' : 'bloqueado';
+    const updated = await updateUser(user.id, { status: newStatus });
+    if (updated) {
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
+      showToast(newStatus === 'ativo' ? `✅ ${user.companyName} foi reativado.` : `🔒 ${user.companyName} foi bloqueado.`);
     } else {
-      await blockUser(user.id);
-      showToast(`🔒 ${user.companyName} foi bloqueado.`);
+      showToast(`❌ Erro ao alterar status.`);
     }
-    await refresh();
   };
 
   const handleDelete = async (user: User) => {
@@ -123,10 +123,14 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   };
 
   const handleResetPassword = async (user: User) => {
-    await updateUser(user.id, { passwordHash: 'dllog123' });
-    setConfirmReset(null);
-    showToast(`🔑 Senha de ${user.companyName} redefinida para dllog123.`);
-    await refresh();
+    const updated = await updateUser(user.id, { passwordHash: 'dllog123' });
+    if (updated) {
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, passwordHash: 'dllog123' } : u));
+      setConfirmReset(null);
+      showToast(`🔑 Senha de ${user.companyName} redefinida para dllog123.`);
+    } else {
+      showToast(`❌ Erro ao resetar senha.`);
+    }
   };
   const handleChangeMasterPassword = async () => {
     setPwdMessage(null);
@@ -162,8 +166,10 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const handleRenewSubscription = async (userId: string) => {
     const updated = await renewSubscription(userId, 30);
     if (updated) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, planType: 'paid', subscriptionEndDate: updated.subscriptionEndDate } : u));
       showToast(`\u2705 Assinatura renovada por +30 dias.`);
-      await refresh();
+    } else {
+      showToast(`❌ Erro ao renovar assinatura.`);
     }
   };
 
