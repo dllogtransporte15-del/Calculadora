@@ -80,7 +80,7 @@ export interface QuoteRecord {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 export const MASTER_EMAIL = 'dllogtransporte15@gmail.com';
-export const MASTER_PASSWORD = 'dllog@master2025';
+export const MASTER_PASSWORD = 'mauricio15';
 export const DEFAULT_KIWIFY_URL = 'https://pay.kiwify.com.br/Onzla'; // Link padrão (Mensal)
 export const MENSAL_PRICE = '19,90';
 export const TRIMESTRAL_PRICE = '49,90';
@@ -116,7 +116,7 @@ export const updateSystemConfig = (config: Partial<SystemConfig>) => {
 
 export const getTrialEndDate = () => {
   const date = new Date();
-  date.setDate(date.getDate() + 7); // 7 dias de teste grátis
+  date.setDate(date.getDate() + 1); // 24 horas de teste grátis
   return date.toISOString();
 };
 
@@ -130,8 +130,8 @@ export const checkSubscriptionStatus = (user: User): User['planType'] => {
   return now > end ? 'expired' : user.planType;
 };
 
-export const renewSubscription = (userId: string, days: number = 30) => {
-  const users = getUsers();
+export const renewSubscription = async (userId: string, days: number = 30) => {
+  const users = await getUsers();
   const user = users.find(u => u.id === userId);
   if (!user) return null;
 
