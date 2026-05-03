@@ -112,10 +112,14 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   };
 
   const handleDelete = async (user: User) => {
-    await deleteUser(user.id);
-    setConfirmDelete(null);
-    showToast(`🗑️ ${user.companyName} foi removido.`);
-    await refresh();
+    const success = await deleteUser(user.id);
+    if (success) {
+      setUsers(prev => prev.filter(u => u.id !== user.id));
+      setConfirmDelete(null);
+      showToast(`🗑️ ${user.companyName} foi removido.`);
+    } else {
+      showToast(`❌ Erro ao excluir ${user.companyName}.`);
+    }
   };
 
   const handleResetPassword = async (user: User) => {
