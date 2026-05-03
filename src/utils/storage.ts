@@ -86,9 +86,9 @@ export const MENSAL_PRICE = '19,90';
 export const TRIMESTRAL_PRICE = '49,90';
 export const ANUAL_PRICE = '199,90';
 
-export const MENSAL_URL = 'https://pay.kiwify.com.br/Onzla';
-export const TRIMESTRAL_URL = 'https://pay.kiwify.com.br/H24X';
-export const ANUAL_URL = 'https://pay.kiwify.com.br/sMNF';
+export const MENSAL_URL = 'https://pay.kiwify.com.br/Onzla8l';
+export const TRIMESTRAL_URL = 'https://pay.kiwify.com.br/H24XoUV';
+export const ANUAL_URL = 'https://pay.kiwify.com.br/sMNFUxV';
 
 // ─── Subscription Helpers ──────────────────────────────────────────────────
 export const getSystemConfig = (): SystemConfig => {
