@@ -68,6 +68,8 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const refresh = async () => {
     setIsLoading(true);
+    // Remove qualquer resquício local para evitar que usuários deletados retornem
+    localStorage.removeItem('dllog_users');
     const data = await getUsers();
     setUsers(data);
     setIsLoading(false);

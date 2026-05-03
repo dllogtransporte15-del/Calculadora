@@ -302,8 +302,9 @@ export const syncLocalUsersToSupabase = async () => {
         subscription_end_date: user.subscriptionEndDate
       });
     }
-    // Após migrar, podemos limpar o local (opcional)
-    // localStorage.removeItem('dllog_users');
+    // Após migrar com sucesso, removemos permanentemente do localStorage
+    localStorage.removeItem('dllog_users');
+    console.log('✅ Migração concluída: localStorage limpo.');
   } catch (e) {
     console.error('Migration failed:', e);
   }
