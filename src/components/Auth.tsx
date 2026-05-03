@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LogIn, UserPlus, Mail, Lock, Building, AlertCircle, Send, FileText, Phone } from 'lucide-react';
 import logo from '../assets/logo.png';
-import { getUsers, saveUser, setLoggedInUser, User } from '../utils/storage';
+import { getUsers, saveUser, setLoggedInUser, User, checkSubscriptionStatus, getTrialEndDate } from '../utils/storage';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -58,6 +58,7 @@ export default function Auth({ onLogin }: AuthProps) {
   const [documentNumber, setDocumentNumber] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [error, setError] = useState('');
+  const [selectedPlan, setSelectedPlan] = useState<'trial' | 'mensal' | 'trimestral' | 'anual'>('trial');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryMessage, setRecoveryMessage] = useState('');
@@ -72,7 +73,7 @@ export default function Auth({ onLogin }: AuthProps) {
     setDocumentNumber(''); // limpa ao trocar de tipo
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -102,7 +103,7 @@ export default function Auth({ onLogin }: AuthProps) {
         }
       }
 
-      const users = getUsers();
+      const users = await getUsers();
 
       if (isLogin) {
         const user = users.find(u => u.email === email && u.passwordHash === password);
@@ -111,8 +112,13 @@ export default function Auth({ onLogin }: AuthProps) {
             setError('Conta bloqueada. Entre em contato com o administrador DLLOG.');
             return;
           }
-          setLoggedInUser(user);
-          onLogin(user);
+          
+          // Verifica assinatura
+          const updatedPlan = checkSubscriptionStatus(user);
+          const updatedUser = { ...user, planType: updatedPlan };
+          
+          setLoggedInUser(updatedUser);
+          onLogin(updatedUser);
         } else {
           setError('E-mail ou senha incorretos.');
         }
@@ -126,7 +132,17 @@ export default function Auth({ onLogin }: AuthProps) {
           setError(`Este ${documentType} já está cadastrado.`);
           return;
         }
-        const newUser = saveUser({
+        let durationDays = 1;
+        let planStatus: User['planType'] = 'trial';
+
+        if (selectedPlan === 'mensal') { durationDays = 30; planStatus = 'paid'; }
+        else if (selectedPlan === 'trimestral') { durationDays = 90; planStatus = 'paid'; }
+        else if (selectedPlan === 'anual') { durationDays = 365; planStatus = 'paid'; }
+
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + durationDays);
+
+        const newUser = await saveUser({
           companyName,
           email,
           passwordHash: password,
@@ -136,6 +152,8 @@ export default function Auth({ onLogin }: AuthProps) {
           role: 'admin',
           status: 'ativo',
           createdAt: new Date().toISOString(),
+          planType: planStatus,
+          subscriptionEndDate: expiryDate.toISOString()
         });
         setLoggedInUser(newUser);
         onLogin(newUser);
@@ -370,6 +388,43 @@ export default function Auth({ onLogin }: AuthProps) {
                 />
               </div>
             </div>
+
+            {/* Plano */}
+            {!isLogin && (
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Selecione seu Plano <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'trial', label: 'Teste 24h', desc: 'Grátis' },
+                    { id: 'mensal', label: 'Mensal', desc: 'R$ 19,90' },
+                    { id: 'trimestral', label: 'Trimestral', desc: 'R$ 49,90' },
+                    { id: 'anual', label: 'Anual', desc: 'R$ 199,90' },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSelectedPlan(p.id as any)}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                        selectedPlan === p.id 
+                          ? 'border-primary bg-primary/5 shadow-md' 
+                          : 'border-slate-100 bg-white hover:border-slate-200'
+                      }`}
+                    >
+                      <span className={`text-xs font-bold ${selectedPlan === p.id ? 'text-primary' : 'text-slate-600'}`}>{p.label}</span>
+                      <span className="text-[9px] text-slate-400 font-medium uppercase tracking-tighter">{p.desc}</span>
+                    </button>
+                  ))}
+                </div>
+                {selectedPlan !== 'trial' && (
+                  <p className="text-[10px] text-amber-600 font-bold bg-amber-50 p-2 rounded-lg border border-amber-100 flex items-center gap-2">
+                    <CreditCard className="w-3 h-3" />
+                    APÓS O CADASTRO, VOCÊ SERÁ DIRECIONADO PARA O PAGAMENTO.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Senha */}
             <div>

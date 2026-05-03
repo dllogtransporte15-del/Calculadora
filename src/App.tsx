@@ -11,7 +11,8 @@ import FreightQuote from './components/FreightQuote';
 import History from './components/History';
 import Auth from './components/Auth';
 import AdminPanel from './components/AdminPanel';
-import { getLoggedInUser, setLoggedInUser, User, initializeMasterUser, isMaster } from './utils/storage';
+import SubscriptionWall from './components/SubscriptionWall';
+import { getLoggedInUser, setLoggedInUser, User, initializeMasterUser, isMaster, checkSubscriptionStatus } from './utils/storage';
 import logo from './assets/logo.png';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
@@ -22,12 +23,18 @@ export default function App() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    initializeMasterUser();
-    const loggedInUser = getLoggedInUser();
-    if (loggedInUser) {
-      setUser(loggedInUser);
-    }
-    setIsCheckingAuth(false);
+    const init = async () => {
+      await initializeMasterUser();
+      const loggedInUser = getLoggedInUser();
+      if (loggedInUser) {
+        // Re-valida assinatura ao carregar
+        const updatedPlan = checkSubscriptionStatus(loggedInUser);
+        const updatedUser = { ...loggedInUser, planType: updatedPlan };
+        setUser(updatedUser);
+      }
+      setIsCheckingAuth(false);
+    };
+    init();
   }, []);
 
   const handleLogout = () => {
@@ -46,6 +53,11 @@ export default function App() {
   // Rota Master → Painel Admin
   if (isMaster(user)) {
     return <AdminPanel onLogout={handleLogout} />;
+  }
+
+  // Bloqueio de Assinatura Expirada
+  if (user.planType === 'expired') {
+    return <SubscriptionWall onLogout={handleLogout} userEmail={user.email} />;
   }
 
   return (

@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 export interface User {
   id: string;
   companyName: string;
@@ -9,7 +11,15 @@ export interface User {
   role: 'master' | 'admin';
   status: 'ativo' | 'bloqueado' | 'pendente';
   createdAt: string;
-  planType?: 'free' | 'paid';
+  planType: 'trial' | 'paid' | 'expired';
+  subscriptionEndDate?: string;
+  kiwifyLink?: string;
+}
+
+export interface SystemConfig {
+  kiwifyMensalUrl: string;
+  kiwifyTrimestralUrl: string;
+  kiwifyAnualUrl: string;
 }
 
 export interface Client {
@@ -71,51 +81,193 @@ export interface QuoteRecord {
 // ─── Constants ────────────────────────────────────────────────────────────────
 export const MASTER_EMAIL = 'dllogtransporte15@gmail.com';
 export const MASTER_PASSWORD = 'dllog@master2025';
+export const DEFAULT_KIWIFY_URL = 'https://pay.kiwify.com.br/Onzla'; // Link padrão (Mensal)
+export const MENSAL_PRICE = '19,90';
+export const TRIMESTRAL_PRICE = '49,90';
+export const ANUAL_PRICE = '199,90';
 
-// ─── User Management ──────────────────────────────────────────────────────────
-export const getUsers = (): User[] => {
+export const MENSAL_URL = 'https://pay.kiwify.com.br/Onzla';
+export const TRIMESTRAL_URL = 'https://pay.kiwify.com.br/H24X';
+export const ANUAL_URL = 'https://pay.kiwify.com.br/sMNF';
+
+// ─── Subscription Helpers ──────────────────────────────────────────────────
+export const getSystemConfig = (): SystemConfig => {
   try {
-    return JSON.parse(localStorage.getItem('dllog_users') || '[]');
+    const config = localStorage.getItem('dllog_config');
+    const defaultConfig: SystemConfig = {
+      kiwifyMensalUrl: MENSAL_URL,
+      kiwifyTrimestralUrl: TRIMESTRAL_URL,
+      kiwifyAnualUrl: ANUAL_URL
+    };
+    return config ? { ...defaultConfig, ...JSON.parse(config) } : defaultConfig;
   } catch {
+    return { 
+      kiwifyMensalUrl: DEFAULT_KIWIFY_URL, 
+      kiwifyTrimestralUrl: DEFAULT_KIWIFY_URL, 
+      kiwifyAnualUrl: DEFAULT_KIWIFY_URL 
+    };
+  }
+};
+
+export const updateSystemConfig = (config: Partial<SystemConfig>) => {
+  const current = getSystemConfig();
+  localStorage.setItem('dllog_config', JSON.stringify({ ...current, ...config }));
+};
+
+export const getTrialEndDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 7); // 7 dias de teste grátis
+  return date.toISOString();
+};
+
+export const checkSubscriptionStatus = (user: User): User['planType'] => {
+  if (user.role === 'master') return 'paid';
+  if (!user.subscriptionEndDate) return 'expired';
+  
+  const now = new Date();
+  const end = new Date(user.subscriptionEndDate);
+  
+  return now > end ? 'expired' : user.planType;
+};
+
+export const renewSubscription = (userId: string, days: number = 30) => {
+  const users = getUsers();
+  const user = users.find(u => u.id === userId);
+  if (!user) return null;
+
+  const currentEnd = user.subscriptionEndDate ? new Date(user.subscriptionEndDate) : new Date();
+  const baseDate = currentEnd > new Date() ? currentEnd : new Date();
+  
+  baseDate.setDate(baseDate.getDate() + days);
+  
+  return updateUser(userId, {
+    planType: 'paid',
+    subscriptionEndDate: baseDate.toISOString()
+  });
+};
+
+// ─── User Management (Supabase) ──────────────────────────────────────────────────────────
+export const getUsers = async (): Promise<User[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(u => ({
+      id: u.id,
+      companyName: u.company_name,
+      email: u.email,
+      passwordHash: u.password_hash,
+      documentType: u.document_type,
+      documentNumber: u.document_number,
+      whatsapp: u.whatsapp,
+      role: u.role,
+      status: u.status,
+      planType: u.plan_type,
+      subscriptionEndDate: u.subscription_end_date,
+      createdAt: u.created_at
+    }));
+  } catch (e) {
+    console.error('Error fetching users from Supabase:', e);
     return [];
   }
 };
 
-export const saveUser = (user: Omit<User, 'id'>): User => {
+export const saveUser = async (user: Omit<User, 'id'>): Promise<User> => {
   try {
-    const users = getUsers();
-    const id = `EMP-${String(users.length + 1).padStart(3, '0')}`;
-    const newUser: User = { ...user, id };
-    localStorage.setItem('dllog_users', JSON.stringify([...users, newUser]));
-    return newUser;
-  } catch (e) {
-    console.error('Error saving user:', e);
-    throw new Error('Não foi possível salvar o usuário. Verifique se o seu navegador permite o uso de armazenamento local.');
+    // Para novos cadastros, geramos um ID amigável ou usamos o do Auth se fosse o caso.
+    // Como estamos simplificando, vamos gerar um ID baseado no timestamp para unicidade.
+    const id = `EMP-${Date.now().toString().slice(-6)}`;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert([{
+        id,
+        company_name: user.companyName,
+        email: user.email,
+        password_hash: user.passwordHash,
+        document_type: user.documentType,
+        document_number: user.documentNumber,
+        whatsapp: user.whatsapp,
+        role: user.role,
+        status: user.status,
+        plan_type: user.planType,
+        subscription_end_date: user.subscriptionEndDate,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      ...user,
+      id: data.id,
+      createdAt: data.created_at
+    };
+  } catch (e: any) {
+    console.error('Error saving user to Supabase:', e);
+    throw new Error(e.message || 'Erro ao salvar no banco de dados.');
   }
 };
 
-export const updateUser = (id: string, data: Partial<Omit<User, 'id'>>): User | null => {
+export const updateUser = async (id: string, data: Partial<Omit<User, 'id'>>): Promise<User | null> => {
   try {
-    const users = getUsers();
-    const index = users.findIndex(u => u.id === id);
-    if (index === -1) return null;
-    const updated = { ...users[index], ...data };
-    users[index] = updated;
-    localStorage.setItem('dllog_users', JSON.stringify(users));
-    return updated;
+    const updatePayload: any = {};
+    if (data.companyName) updatePayload.company_name = data.companyName;
+    if (data.email) updatePayload.email = data.email;
+    if (data.passwordHash) updatePayload.password_hash = data.passwordHash;
+    if (data.documentType) updatePayload.document_type = data.documentType;
+    if (data.documentNumber) updatePayload.document_number = data.documentNumber;
+    if (data.whatsapp) updatePayload.whatsapp = data.whatsapp;
+    if (data.role) updatePayload.role = data.role;
+    if (data.status) updatePayload.status = data.status;
+    if (data.planType) updatePayload.plan_type = data.planType;
+    if (data.subscriptionEndDate) updatePayload.subscription_end_date = data.subscriptionEndDate;
+
+    const { data: updated, error } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      id: updated.id,
+      companyName: updated.company_name,
+      email: updated.email,
+      passwordHash: updated.password_hash,
+      documentType: updated.document_type,
+      documentNumber: updated.document_number,
+      whatsapp: updated.whatsapp,
+      role: updated.role,
+      status: updated.status,
+      planType: updated.plan_type,
+      subscriptionEndDate: updated.subscription_end_date,
+      createdAt: updated.created_at
+    };
   } catch (e) {
-    console.error('Error updating user:', e);
+    console.error('Error updating user in Supabase:', e);
     return null;
   }
 };
 
-export const deleteUser = (id: string): boolean => {
+export const deleteUser = async (id: string): Promise<boolean> => {
   try {
-    const users = getUsers().filter(u => u.id !== id);
-    localStorage.setItem('dllog_users', JSON.stringify(users));
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
     return true;
   } catch (e) {
-    console.error('Error deleting user:', e);
+    console.error('Error deleting user from Supabase:', e);
     return false;
   }
 };
@@ -126,29 +278,42 @@ export const unblockUser = (id: string) => updateUser(id, { status: 'ativo' });
 export const isMaster = (user: User | null): boolean =>
   user?.email === MASTER_EMAIL && user?.role === 'master';
 
-// Seed do usuário master — chamado na inicialização do app
-export const initializeMasterUser = (): void => {
-  const users = getUsers();
-  const masterExists = users.some(u => u.email === MASTER_EMAIL);
-  if (!masterExists) {
-    saveUser({
-      companyName: 'DLLOG TRANSPORTES',
-      email: MASTER_EMAIL,
-      passwordHash: MASTER_PASSWORD,
-      documentType: 'CNPJ',
-      documentNumber: '00.000.000/0000-00',
-      role: 'master',
-      status: 'ativo',
-      createdAt: new Date().toISOString(),
-      planType: 'paid',
-    });
-  } else {
-    // Garante que o master sempre tenha o role correto (migração)
-    const master = users.find(u => u.email === MASTER_EMAIL);
-    if (master && master.role !== 'master') {
-      updateUser(master.id, { role: 'master', status: 'ativo' });
+// Função para migrar dados locais para o Supabase (executada uma vez)
+export const syncLocalUsersToSupabase = async () => {
+  const localUsersJson = localStorage.getItem('dllog_users');
+  if (!localUsersJson) return;
+
+  try {
+    const localUsers: User[] = JSON.parse(localUsersJson);
+    for (const user of localUsers) {
+      if (user.email === MASTER_EMAIL) continue; // Pula master que já existe
+      
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        company_name: user.companyName,
+        email: user.email,
+        password_hash: user.passwordHash,
+        document_type: user.documentType,
+        document_number: user.documentNumber,
+        whatsapp: user.whatsapp,
+        role: user.role,
+        status: user.status,
+        plan_type: user.planType,
+        subscription_end_date: user.subscriptionEndDate
+      });
     }
+    // Após migrar, podemos limpar o local (opcional)
+    // localStorage.removeItem('dllog_users');
+  } catch (e) {
+    console.error('Migration failed:', e);
   }
+};
+
+// Seed do usuário master — não é mais estritamente necessário se o SQL rodou,
+// mas mantemos para garantir consistência.
+export const initializeMasterUser = async (): Promise<void> => {
+  // Sincroniza dados antigos se houver
+  await syncLocalUsersToSupabase();
 };
 
 export const getLoggedInUser = (): User | null => {

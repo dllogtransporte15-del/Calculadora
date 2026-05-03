@@ -1,11 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users, Search, ShieldCheck, ShieldOff, Trash2, CheckCircle2,
   XCircle, Clock, Building, FileText, Mail, Calendar, Crown,
-  LogOut, AlertTriangle, Phone, KeyRound, Eye, EyeOff, Check
+  LogOut, AlertTriangle, Phone, KeyRound, Eye, EyeOff, Check,
+  CreditCard, CalendarCheck, Settings, ExternalLink
 } from 'lucide-react';
 import logo from '../assets/logo.png';
-import { getUsers, blockUser, unblockUser, deleteUser, updateUser, User, setLoggedInUser, getLoggedInUser, MASTER_EMAIL } from '../utils/storage';
+import { 
+  getUsers, blockUser, unblockUser, deleteUser, updateUser, User, 
+  setLoggedInUser, getLoggedInUser, MASTER_EMAIL, 
+  renewSubscription, getSystemConfig, updateSystemConfig 
+} from '../utils/storage';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -43,7 +48,8 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('todos');
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
   const [confirmReset, setConfirmReset] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(() => getUsers());
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState('');
   // Master password change
   const [newPassword, setNewPassword] = useState('');
@@ -52,13 +58,24 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [pwdMessage, setPwdMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [showConfigSection, setShowConfigSection] = useState(false);
+  const [kiwifyLinks, setKiwifyLinks] = useState(() => getSystemConfig());
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3000);
   };
 
-  const refresh = () => setUsers(getUsers());
+  const refresh = async () => {
+    setIsLoading(true);
+    const data = await getUsers();
+    setUsers(data);
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
 
   const nonMasterUsers = useMemo(
     () => users.filter(u => u.role !== 'master'),
@@ -83,32 +100,31 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
     pendentes: nonMasterUsers.filter(u => u.status === 'pendente').length,
   }), [nonMasterUsers]);
 
-  const handleBlock = (user: User) => {
+  const handleBlock = async (user: User) => {
     if (user.status === 'bloqueado') {
-      unblockUser(user.id);
+      await unblockUser(user.id);
       showToast(`✅ ${user.companyName} foi reativado.`);
     } else {
-      blockUser(user.id);
+      await blockUser(user.id);
       showToast(`🔒 ${user.companyName} foi bloqueado.`);
     }
-    refresh();
+    await refresh();
   };
 
-  const handleDelete = (user: User) => {
-    deleteUser(user.id);
+  const handleDelete = async (user: User) => {
+    await deleteUser(user.id);
     setConfirmDelete(null);
     showToast(`🗑️ ${user.companyName} foi removido.`);
-    refresh();
+    await refresh();
   };
 
-  const handleResetPassword = (user: User) => {
-    updateUser(user.id, { passwordHash: 'dllog123' });
+  const handleResetPassword = async (user: User) => {
+    await updateUser(user.id, { passwordHash: 'dllog123' });
     setConfirmReset(null);
     showToast(`🔑 Senha de ${user.companyName} redefinida para dllog123.`);
-    refresh();
+    await refresh();
   };
-
-  const handleChangeMasterPassword = () => {
+  const handleChangeMasterPassword = async () => {
     setPwdMessage(null);
     if (!newPassword || !confirmPassword) {
       setPwdMessage({ type: 'error', text: 'Preencha os dois campos.' });
@@ -122,12 +138,13 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
       setPwdMessage({ type: 'error', text: 'As senhas não coincidem.' });
       return;
     }
-    const masterUser = getUsers().find(u => u.email === MASTER_EMAIL);
+    const currentUsers = await getUsers();
+    const masterUser = currentUsers.find(u => u.email === MASTER_EMAIL);
     if (!masterUser) {
       setPwdMessage({ type: 'error', text: 'Usuário master não encontrado.' });
       return;
     }
-    const updated = updateUser(masterUser.id, { passwordHash: newPassword });
+    const updated = await updateUser(masterUser.id, { passwordHash: newPassword });
     if (updated) {
       const loggedUser = getLoggedInUser();
       if (loggedUser) setLoggedInUser({ ...loggedUser, passwordHash: newPassword });
@@ -136,6 +153,20 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
       setConfirmPassword('');
       setTimeout(() => { setPwdMessage(null); setShowPasswordSection(false); }, 2500);
     }
+  };
+
+  const handleRenewSubscription = async (userId: string) => {
+    const updated = await renewSubscription(userId, 30);
+    if (updated) {
+      showToast(`\u2705 Assinatura renovada por +30 dias.`);
+      await refresh();
+    }
+  };
+
+  const handleUpdateKiwify = () => {
+    updateSystemConfig(kiwifyLinks);
+    showToast(`\u2705 Links da Kiwify atualizados.`);
+    setShowConfigSection(false);
   };
 
   const handleLogout = () => {
@@ -244,9 +275,25 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setShowConfigSection(!showConfigSection)}
+              title="Configurações do Sistema"
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${
+                showConfigSection 
+                  ? 'bg-primary text-white border-primary' 
+                  : 'border-primary/20 text-primary hover:bg-primary/5'
+              } text-xs font-bold uppercase tracking-wider`}
+            >
+              <Settings className="w-4 h-4" />
+              Configurações
+            </button>
+            <button
               onClick={() => setShowPasswordSection(!showPasswordSection)}
               title="Alterar minha senha"
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-primary/20 text-primary text-xs font-bold uppercase tracking-wider hover:bg-primary/5 transition-all"
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${
+                showPasswordSection 
+                  ? 'bg-primary text-white border-primary' 
+                  : 'border-primary/20 text-primary hover:bg-primary/5'
+              } text-xs font-bold uppercase tracking-wider`}
             >
               <KeyRound className="w-4 h-4" />
               Minha Senha
@@ -261,53 +308,112 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
           </div>
         </div>
 
+        {/* System Configuration Section */}
+        {showConfigSection && (
+          <div className="border-t border-primary/10 pt-6 mt-4 bg-slate-50/50 -mx-4 md:-mx-8 px-4 md:px-8 pb-6">
+            <div className="max-w-4xl">
+              <div className="flex items-center gap-2 mb-4">
+                <Settings className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-luxury-text">Links de Checkout Kiwify</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Plano Mensal</label>
+                  <input 
+                    type="text" 
+                    value={kiwifyLinks.kiwifyMensalUrl} 
+                    onChange={e => setKiwifyLinks({...kiwifyLinks, kiwifyMensalUrl: e.target.value})}
+                    placeholder="https://pay.kiwify.com.br/..."
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Plano Trimestral</label>
+                  <input 
+                    type="text" 
+                    value={kiwifyLinks.kiwifyTrimestralUrl} 
+                    onChange={e => setKiwifyLinks({...kiwifyLinks, kiwifyTrimestralUrl: e.target.value})}
+                    placeholder="https://pay.kiwify.com.br/..."
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Plano Anual</label>
+                  <input 
+                    type="text" 
+                    value={kiwifyLinks.kiwifyAnualUrl} 
+                    onChange={e => setKiwifyLinks({...kiwifyLinks, kiwifyAnualUrl: e.target.value})}
+                    placeholder="https://pay.kiwify.com.br/..."
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={handleUpdateKiwify}
+                  className="flex items-center gap-2 px-6 py-2 bg-primary text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-primary-dark shadow-md"
+                >
+                  <Check className="w-4 h-4" />
+                  Salvar Configurações
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Change Master Password Section */}
         {showPasswordSection && (
-          <div className="border-t border-primary/10 pt-4 mt-4">
-            <div className="max-w-md flex flex-col sm:flex-row gap-3 items-end">
-              <div className="flex-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nova Senha</label>
-                <div className="relative">
-                  <input
-                    type={showNewPwd ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    placeholder="Nova senha..."
-                    className="w-full pr-9 pl-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
-                  />
-                  <button type="button" onClick={() => setShowNewPwd(!showNewPwd)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+          <div className="border-t border-primary/10 pt-6 mt-4 bg-slate-50/50 -mx-4 md:-mx-8 px-4 md:px-8 pb-6">
+            <div className="max-w-md">
+              <div className="flex items-center gap-2 mb-4">
+                <KeyRound className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-luxury-text">Alterar Minha Senha</h3>
               </div>
-              <div className="flex-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Confirmar Senha</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPwd ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="Repita a senha..."
-                    className="w-full pr-9 pl-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
-                  />
-                  <button type="button" onClick={() => setShowConfirmPwd(!showConfirmPwd)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nova Senha</label>
+                  <div className="relative">
+                    <input 
+                      type={showNewPwd ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres..."
+                      className="w-full pr-9 pl-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                    />
+                    <button type="button" onClick={() => setShowNewPwd(!showNewPwd)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Confirmar Senha</label>
+                  <div className="relative">
+                    <input 
+                      type={showConfirmPwd ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      placeholder="Repita a senha..."
+                      className="w-full pr-9 pl-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                    />
+                    <button type="button" onClick={() => setShowConfirmPwd(!showConfirmPwd)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={handleChangeMasterPassword}
+                  className="flex items-center gap-1.5 px-6 py-2 bg-primary text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-primary-dark shadow-md whitespace-nowrap"
+                >
+                  <Check className="w-4 h-4" />
+                  Salvar
+                </button>
               </div>
-              <button
-                onClick={handleChangeMasterPassword}
-                className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-primary-dark transition-all whitespace-nowrap"
-              >
-                <Check className="w-4 h-4" />
-                Salvar
-              </button>
+              {pwdMessage && (
+                <p className={`mt-2 text-xs font-semibold ${ pwdMessage.type === 'success' ? 'text-green-600' : 'text-red-500' }`}>
+                  {pwdMessage.text}
+                </p>
+              )}
             </div>
-            {pwdMessage && (
-              <p className={`mt-2 text-xs font-semibold ${ pwdMessage.type === 'success' ? 'text-green-600' : 'text-red-500' }`}>
-                {pwdMessage.text}
-              </p>
-            )}
           </div>
         )}
       </header>
@@ -381,14 +487,21 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
                 <tr className="border-b border-slate-100 bg-slate-50/80">
                   <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Empresa</th>
                   <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Contato</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Documento</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Assinatura</th>
                   <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cadastro</th>
                   <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Status</th>
                   <th className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-16 text-slate-400">
+                      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-sm font-medium">Carregando usuários...</p>
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="text-center py-16 text-slate-400">
                       <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -434,11 +547,21 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
-                            {user.documentType || '—'}
-                          </span>
-                          <span className="text-xs text-slate-600 font-mono">{user.documentNumber || '—'}</span>
+                        <div className="space-y-1">
+                          <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest border ${
+                            user.planType === 'paid' ? 'bg-green-50 text-green-600 border-green-100' : 
+                            user.planType === 'trial' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                            'bg-red-50 text-red-600 border-red-100'
+                          }`}>
+                            <CreditCard className="w-2.5 h-2.5" />
+                            {user.planType === 'paid' ? 'PAGO' : user.planType === 'trial' ? 'TESTE' : 'EXPIRADO'}
+                          </div>
+                          {user.subscriptionEndDate && (
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                              <CalendarCheck className="w-3 h-3 text-slate-400" />
+                              Expira: {formatDate(user.subscriptionEndDate)}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -452,6 +575,13 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleRenewSubscription(user.id)}
+                            title="Renovar +30 dias"
+                            className="p-1.5 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-all"
+                          >
+                            <CalendarCheck className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => setConfirmReset(user)}
                             title="Resetar senha para dllog123"
