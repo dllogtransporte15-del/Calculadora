@@ -165,8 +165,12 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const handleRenewSubscription = async (userId: string) => {
     const updated = await renewSubscription(userId, 30);
-    if (updated) {
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, planType: 'paid', subscriptionEndDate: updated.subscriptionEndDate } : u));
+    if (updated && updated.subscriptionEndDate) {
+      setUsers(prev => prev.map(u => u.id === userId ? { 
+        ...u, 
+        planType: 'paid', 
+        subscriptionEndDate: updated.subscriptionEndDate 
+      } : u));
       showToast(`\u2705 Assinatura renovada por +30 dias.`);
     } else {
       showToast(`❌ Erro ao renovar assinatura.`);
