@@ -313,8 +313,8 @@ export const syncLocalUsersToSupabase = async () => {
 // Seed do usuário master — não é mais estritamente necessário se o SQL rodou,
 // mas mantemos para garantir consistência.
 export const initializeMasterUser = async (): Promise<void> => {
-  // Sincroniza dados antigos se houver
-  await syncLocalUsersToSupabase();
+  // A migração já foi concluída. Desativamos para evitar que dados deletados retornem.
+  // await syncLocalUsersToSupabase();
 };
 
 export const getLoggedInUser = (): User | null => {
